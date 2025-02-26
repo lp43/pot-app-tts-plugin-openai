@@ -4,28 +4,36 @@ permissions: write-all
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest  # 更改執行環境為 Windows
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Install zip
-        run: sudo apt-get install -y jq
-      - id: getname
+      
+      - name: Install jq
+        run: choco install jq -y  # 使用 Chocolatey 安裝 jq
+        shell: pwsh  # 指定 PowerShell 執行環境
+
+      - name: Get Name and Icon from JSON
+        shell: pwsh
         run: |
-          echo "NAME=$(cat info.json | jq '.id' | tr -d '"')" >> "$GITHUB_ENV"
-          echo "ICON=$(cat info.json | jq '.icon' | tr -d '"')" >> "$GITHUB_ENV"
-      - uses: vimtor/action-zip@v1
-        with:
-          files: info.json ${{ env.ICON }} main.js
-          dest: ${{ env.NAME }}.potext
+          $name = Get-Content info.json | jq -r '.id'
+          $icon = Get-Content info.json | jq -r '.icon'
+          echo "NAME=$name" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "ICON=$icon" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create ZIP Archive
+        shell: pwsh
+        run: Compress-Archive -Path info.json, $env:ICON, main.js -DestinationPath "$env:NAME.potext"
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.NAME }}.potext
           path: "*.potext"
           if-no-files-found: error
+
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags')
         uses: softprops/action-gh-release@v2
